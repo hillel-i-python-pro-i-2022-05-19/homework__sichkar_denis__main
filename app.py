@@ -1,12 +1,15 @@
+import csv
+import random
+import sqlite3
+
+import requests
+from faker import Faker
 from flask import Flask, render_template
 from webargs import fields
 from webargs.flaskparser import use_args
-import random
-import requests
-from faker import Faker
-import csv
+
 from constants import PASSWORD_CHARACTERS
-from settings import ROOT_PATH
+from settings import ROOT_PATH, DB_PATH
 
 app = Flask(__name__)
 fake = Faker(['en_UK', 'uk_UA', 'ru_RU'])
@@ -23,7 +26,7 @@ def path_example():
 
 
 @app.route('/hello')
-@use_args({"name": fields.Str(required=True), }, location="query")
+@use_args({"name": fields.Str(required=True), "age": fields.Int(required=True)}, location="query")
 def hi(args):
     return f'Hello {args["name"]}, I am {args["age"]} old.'
 
@@ -57,38 +60,32 @@ def generate_users(users=100):
     """Generate users.
     Example: Vasya example@mail.com
     """
-    names = [fake.first_name() for _ in range(users)]
-    emails = [fake.unique.ascii_email() for _ in range(users)]
-    list_of_users = [' '.join((names[i], emails[i])) for i in range(users)]
+    list_of_users = [(fake.first_name(), fake.unique.ascii_email()) for _ in range(users)]
     return render_template('users.html', number=users, users_list=list_of_users)
 
 
 @app.route('/space/')
 def count_astronauts():
     response = requests.get("http://api.open-notify.org/astros.json")
-    dict_ = response.json()
-    count = sum(1 for _ in dict_["people"])
-    peoples = [astronaut["name"] for astronaut in dict_["people"]]
-    return f"{count} astronauts: {peoples}"
+    list_of_astronauts_data = response.json()["people"]
+    number_of_astronauts = len(list_of_astronauts_data)
+    names_of_astronauts = [astronaut["name"] for astronaut in list_of_astronauts_data]
+    return f"{number_of_astronauts} astronauts: {names_of_astronauts}"
 
 
 @app.route('/mean/')
 def count_mean():
     with open('people_data.csv') as csvfile:
         rows = list(csv.reader(csvfile))
-        dict_1 = {}
-        for ind in range(1, len(rows)-1):
-            dict_1[rows[ind][0]] = [rows[ind][1], rows[ind][2]]
-        suma_h = 0
-        suma_w = 0
-        number = 0
-        for k in dict_1:
-            suma_h += float(dict_1[k][0])
-            suma_w += float(dict_1[k][1])
-            number += 1
-        aver_h = (suma_h / number) * 2.54
-        aver_w = (suma_w / number) * 0.453592
-    return f"Aver height: {aver_h}cm;\tAver weight: {aver_w}kg"
+        general_height = 0
+        general_weight = 0
+        number = len(rows) - 1
+        for index in range(1, number):
+            general_height += float(rows[index][1])
+            general_weight += float(rows[index][2])
+        average_height = (general_height / number) * 2.54
+        average_weight = (general_weight / number) * 0.453592
+    return f"Average height: {average_height}cm<br>Average weight: {average_weight}kg"
 
 
 if __name__ == '__main__':
