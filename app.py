@@ -15,6 +15,64 @@ app = Flask(__name__)
 fake = Faker(['en_UK', 'uk_UA', 'ru_RU'])
 
 
+class Connection:  # context-manager
+    def __init__(self):
+        self._connection: sqlite3.Connection | None = None
+
+    def __enter__(self):
+        self._connection = sqlite3.connect(DB_PATH)
+        self._connection.row_factory = sqlite3.Row
+        return self._connection
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._connection.close()
+
+
+@app.route('/users/read-all')
+def users__read_all():
+    with Connection() as connection:
+        users = connection.execute('SELECT * FROM users;').fetchall()
+    return '<br>'.join([f'№{user["pk"]}: {user["name"]} - {user["age"]}' for user in users])
+
+
+@app.route('/users/create')
+@use_args({"name": fields.Str(required=True), "age": fields.Int(required=True)}, location="query")
+def users__create(args):
+    with Connection() as connection:
+        with connection:
+            connection.execute(
+                'INSERT INTO users (name, age) VALUES (:name, :age);',
+                {'name': args['name'], 'age': args['age']},
+            )
+        # /connection.commit()
+    return 'OK'
+
+
+@app.route('/users/delete/<int:pk>')
+def users__delete(pk):
+    with Connection() as connection:
+        with connection:
+            connection.execute(
+                'DELETE FROM users WHERE (pk=:pk);',
+                {'pk': pk},
+            )
+    return 'Ok'
+
+
+@app.route('/users/update/<int:pk>')
+@use_args({"age": fields.Int(required=True)}, location="query")
+def users__update(args, pk):
+    with Connection() as connection:
+        with connection:
+            connection.execute(
+                'UPDATE users '
+                'SET age=:age '
+                'WHERE (pk=:pk);',
+                {'age': args['age'], 'pk': pk},
+            )
+    return 'ok'
+
+
 @app.route('/')
 def hello_world():
     return 'Hello World!'
@@ -86,6 +144,50 @@ def count_mean():
         average_height = (general_height / number) * 2.54
         average_weight = (general_weight / number) * 0.453592
     return f"Average height: {average_height}cm<br>Average weight: {average_weight}kg"
+
+
+@app.route('/phones/create')
+@use_args({"contactName": fields.Str(required=True), "phoneValue": fields.Str(required=True)}, location="query")
+def phones__create(args):
+    with Connection() as connection:
+        with connection:
+            connection.execute(
+                'INSERT INTO phones (contactName, phoneValue) VALUES (:contactName, :phoneValue);',
+                {'contactName': args['contactName'], 'phoneValue': args['phoneValue']},
+            )
+    return 'OK'
+
+
+@app.route('/phones/read')
+def phones__read():
+    with Connection() as connection:
+        phones = connection.execute('SELECT * FROM phones;').fetchall()
+    return '<br>'.join(f'№{phone["phoneID"]}: {phone["contactName"]}, {phone["phoneValue"]}' for phone in phones)
+
+
+@app.route('/phones/update/<int:phoneID>')
+@use_args({"contactName": fields.Str(required=True), "phoneValue": fields.Str(required=True)}, location="query")
+def phones__update(args, phoneID):
+    with Connection() as connection:
+        with connection:
+            connection.execute(
+                'UPDATE phones '
+                'SET contactName=:contactName, phoneValue=:phoneValue '
+                'WHERE (phoneID=:phoneID);',
+                {'contactName': args['contactName'], 'phoneValue': args['phoneValue'], 'phoneID': phoneID},
+            )
+    return 'ok'
+
+
+@app.route('/phones/delete/<int:phoneID>')
+def phones__delete(phoneID):
+    with Connection() as connection:
+        with connection:
+            connection.execute(
+                'DELETE FROM phones WHERE (phoneID=:phoneID);',
+                {'phoneID': phoneID},
+            )
+    return 'Ok'
 
 
 if __name__ == '__main__':
